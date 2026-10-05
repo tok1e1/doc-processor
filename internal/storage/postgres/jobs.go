@@ -35,36 +35,36 @@ func (r *JobRepository) Create(ctx context.Context, job domain.Job, routingKey s
 	}
 
 	var idemKey *string
-	if job.IdempotencyKey != "" {
-		idemKey = &job.IdempotencyKey
+	if key := job.IdempotencyKey; key != "" {
+		idemKey = &key
 	}
 
+	var saved domain.Job
 	err = pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
-		row := tx.QueryRow(ctx, `
+		var txErr error
+		saved, txErr = scanJob(tx.QueryRow(ctx, `
 			INSERT INTO jobs (id, template, payload, status, idempotency_key)
 			VALUES ($1, $2, $3, $4, $5)
 			ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING
 			RETURNING `+jobColumns,
-			job.ID, job.Template, job.Payload, domain.StatusPending, idemKey)
-
-		job, err = scanJob(row)
-		if errors.Is(err, domain.ErrNotFound) {
-			row = tx.QueryRow(ctx, `SELECT `+jobColumns+` FROM jobs WHERE idempotency_key = $1`, idemKey)
-			job, err = scanJob(row)
-			return err
+			job.ID, job.Template, job.Payload, domain.StatusPending, idemKey))
+		if errors.Is(txErr, domain.ErrNotFound) && idemKey != nil {
+			// The key is taken: return the job that owns it.
+			saved, txErr = scanJob(tx.QueryRow(ctx, `SELECT `+jobColumns+` FROM jobs WHERE idempotency_key = $1`, *idemKey))
+			return txErr
 		}
-		if err != nil {
-			return err
+		if txErr != nil {
+			return txErr
 		}
 
 		created = true
-		_, err = tx.Exec(ctx, `INSERT INTO outbox (routing_key, payload) VALUES ($1, $2)`, routingKey, msg)
-		return err
+		_, txErr = tx.Exec(ctx, `INSERT INTO outbox (routing_key, payload) VALUES ($1, $2)`, routingKey, msg)
+		return txErr
 	})
 	if err != nil {
 		return domain.Job{}, false, fmt.Errorf("create job: %w", err)
 	}
-	return job, created, nil
+	return saved, created, nil
 }
 
 func (r *JobRepository) Get(ctx context.Context, id uuid.UUID) (domain.Job, error) {
