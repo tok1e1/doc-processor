@@ -1,0 +1,124 @@
+openapi: 3.0.3
+info:
+  title: doc-processor API
+  version: 1.0.0
+  description: Asynchronous PDF document generation.
+servers:
+  - url: http://localhost:8080
+paths:
+  /api/v1/jobs:
+    post:
+      summary: Create a generation job
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: false
+          schema: { type: string, maxLength: 128 }
+          description: Repeated requests with the same key return the original job.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateJobRequest' }
+      responses:
+        '202':
+          description: Job accepted
+          headers:
+            Location: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Job' }
+        '200':
+          description: Existing job returned for a repeated idempotency key
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Job' }
+        '409': { $ref: '#/components/responses/Error' }
+        '413': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /api/v1/jobs/{id}:
+    get:
+      summary: Get job status
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Job
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Job' }
+        '404': { $ref: '#/components/responses/Error' }
+  /api/v1/jobs/{id}/document:
+    get:
+      summary: Download the rendered PDF
+      description: Supports Range and conditional requests.
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: PDF document
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /api/v1/templates:
+    get:
+      summary: List available templates
+      responses:
+        '200':
+          description: Template names
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  templates: { type: array, items: { type: string } }
+  /healthz:
+    get:
+      summary: Liveness probe
+      responses:
+        '200': { description: OK }
+  /readyz:
+    get:
+      summary: Readiness probe (Postgres and RabbitMQ)
+      responses:
+        '200': { description: Ready }
+        '503': { description: A dependency is unavailable }
+components:
+  schemas:
+    CreateJobRequest:
+      type: object
+      required: [template, data]
+      properties:
+        template: { type: string, enum: [invoice, offer_letter] }
+        data:
+          type: object
+          description: Template-specific payload, see examples/.
+    Job:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        template: { type: string }
+        status: { type: string, enum: [pending, processing, done, failed] }
+        attempts: { type: integer }
+        error: { type: string }
+        document_url: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        finished_at: { type: string, format: date-time }
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+            field: { type: string }
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
