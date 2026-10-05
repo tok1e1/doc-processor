@@ -1,0 +1,13 @@
+{
+  "template": "offer_letter",
+  "data": {
+    "company": "Acme Corp",
+    "employee": { "full_name": "Иван Петров", "email": "ivan.petrov@example.com" },
+    "position": "Senior Go Developer",
+    "department": "Platform",
+    "start_date": "2026-11-02",
+    "salary": { "amount": 35000000, "currency": "RUB" },
+    "probation_months": 3,
+    "signer": "Jane Doe, CTO"
+  }
+}

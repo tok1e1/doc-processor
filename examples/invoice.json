@@ -1,0 +1,24 @@
+{
+  "template": "invoice",
+  "data": {
+    "number": "INV-2026-0042",
+    "date": "2026-10-01",
+    "due_date": "2026-10-15",
+    "currency": "RUB",
+    "vat_rate": 20,
+    "seller": {
+      "name": "ООО «Северный ветер»",
+      "tax_id": "7701234567",
+      "address": "Москва, ул. Тверская, 7"
+    },
+    "buyer": {
+      "name": "Acme Corp",
+      "address": "1 Market St, San Francisco"
+    },
+    "items": [
+      { "name": "Backend development (Go)", "quantity": 40, "unit_price": 350000 },
+      { "name": "Code review", "quantity": 6, "unit_price": 199999 },
+      { "name": "Infrastructure support", "quantity": 1, "unit_price": 4500000 }
+    ]
+  }
+}
